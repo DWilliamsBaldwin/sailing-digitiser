@@ -1,0 +1,21 @@
+# macOS 
+.DS_Store 
+
+# Python _
+_pycache__/ 
+*.pyc 
+
+# Local environments 
+.env 
+
+# Input data 
+data/
+
+# Generated data 
+output/ 
+
+# Jupyter 
+.ipynb_checkpoints/ 
+
+# VS Code 
+.vscode/
