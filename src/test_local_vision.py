@@ -2,7 +2,7 @@ from ollama import chat
 
 IMAGE_FILE = (
 	"data/raw/"
-	"09f759ce-d691-4870-ace9-cbaf26703d56.jpeg"
+	"f615e34f-3798-49b9-8b28-ce2934e891a2.jpeg"
 	)
 
 PROMPT = """
