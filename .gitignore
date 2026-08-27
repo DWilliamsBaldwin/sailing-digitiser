@@ -19,3 +19,6 @@ output/
 
 # VS Code 
 .vscode/
+
+#Generated code
+*.html
