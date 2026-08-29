@@ -1,98 +1,219 @@
 import pandas as pd
 
-def calculate_handicap(race_excel_path, py_csv_path, output_path=None):
-    # Read race sheet
-    df = pd.read_excel(race_excel_path, engine='openpyxl')
 
-    # Convert elapsed_time from MM:SS text
-    # into pandas Timedelta
-	
-    df["elapsed_time"] = pd.to_timedelta(
-        "00:" + df["elapsed_time"].astype(str)
+def calculate_handicap(
+    race_excel_path,
+    py_csv_path,
+    output_path=None,
+):
+
+    # Read race workbook
+
+    df = pd.read_excel(
+        race_excel_path,
+        engine="openpyxl",
     )
 
-    # Compute maximum laps sailed (used for normalization)
-    max_laps = df['total_laps'].max()
+    # Read PY lookup
 
-    # Compute average lap time
-    # elapsed_time is expected to be Pandas Timedelta (hh:mm:ss or Excel duration)
-    df['average_lap_time'] = df['elapsed_time'] / df['total_laps']
+    py_df = pd.read_csv(
+        py_csv_path
+    )
 
-    # Compute adjusted elapsed time for normalization to max laps
-    # Default adjusted elapsed = average_lap_time * max_laps
-    df['adjusted_elapsed_time'] = df['average_lap_time'] * max_laps
-    # For those who sailed the maximum laps, adjusted_elapsed_time should equal elapsed_time
-    mask_max = df['total_laps'] == max_laps
-    df.loc[mask_max, 'adjusted_elapsed_time'] = df.loc[mask_max, 'elapsed_time']
+    # Make boat type matching case-insensitive
 
-    # Read PY lookup values
-
-    py_df = pd.read_csv(py_csv_path)
-    
     df["boat_type"] = (
         df["boat_type"]
         .astype(str)
         .str.strip()
         .str.upper()
     )
-    
+
     py_df["boat_type"] = (
         py_df["boat_type"]
         .astype(str)
         .str.strip()
         .str.upper()
     )
-    
-    df = df.merge(
+
+    # Split finishers and non-finishers
+
+    special_statuses = [
+        "DNF",
+        "DNS",
+        "RET",
+    ]
+
+    finished_df = df[
+        ~df["elapsed_time"]
+        .astype(str)
+        .str.upper()
+        .isin(special_statuses)
+    ].copy()
+
+    non_finishers_df = df[
+        df["elapsed_time"]
+        .astype(str)
+        .str.upper()
+        .isin(special_statuses)
+    ].copy()
+
+    competitor_count = len(df)
+
+    #
+    # FINISHERS
+    #
+
+    finished_df["elapsed_time"] = pd.to_timedelta(
+        "00:"
+        + finished_df["elapsed_time"].astype(str)
+    )
+
+    max_laps = (
+        finished_df["total_laps"]
+        .max()
+    )
+
+    finished_df["average_lap_time"] = (
+        finished_df["elapsed_time"]
+        /
+        finished_df["total_laps"]
+    )
+
+    finished_df["adjusted_elapsed_time"] = (
+        finished_df["average_lap_time"]
+        *
+        max_laps
+    )
+
+    mask_max = (
+        finished_df["total_laps"]
+        ==
+        max_laps
+    )
+
+    finished_df.loc[
+        mask_max,
+        "adjusted_elapsed_time"
+    ] = finished_df.loc[
+        mask_max,
+        "elapsed_time"
+    ]
+
+    finished_df = finished_df.merge(
         py_df,
         on="boat_type",
         how="left",
     )
 
-
-    print("\n===== PY MERGE CHECK =====\n")
-    
-    print(
-        df[
-            [
-                "boat_type",
-                "py",
-            ]
-        ]
-    )
-    
-    print("\nMissing PY rows:\n")
-    
-    print(
-        df[
-            df["py"].isna()
-        ]
+    finished_df["corrected_time"] = (
+        finished_df["adjusted_elapsed_time"]
+        *
+        1000
+        /
+        finished_df["py"]
     )
 
-    # Calculate corrected time: standard RYA sum-of-laps method
-    # corrected_time = adjusted_elapsed_time * 1000 / PY
-    df['corrected_time'] = df['adjusted_elapsed_time'] * 1000 / df['py']
-
-    # Rank competitors by corrected_time (lower is better)
-    df['corrected_position'] = (
-        df['corrected_time']
-          .rank(method='min', ascending=True)
-          .astype('Int64')
+    finished_df["corrected_position"] = (
+        finished_df["corrected_time"]
+        .rank(
+            method="min",
+            ascending=True,
+        )
+        .astype("Int64")
     )
 
-    # Sort by corrected_time to produce leaderboard
-    df.sort_values('corrected_time', inplace=True)
-    # Reset index if desired
-    df.reset_index(drop=True, inplace=True)
+    #
+    # NON FINISHERS
+    #
 
-    # Optionally write results to Excel or CSV
+    penalty_score = (
+        competitor_count
+        + 1
+    )
+
+    if len(non_finishers_df) > 0:
+
+        non_finishers_df["average_lap_time"] = pd.NaT
+
+        non_finishers_df[
+            "adjusted_elapsed_time"
+        ] = pd.NaT
+
+        non_finishers_df["py"] = pd.NA
+
+        non_finishers_df[
+            "corrected_time"
+        ] = pd.NaT
+
+        non_finishers_df[
+            "corrected_position"
+        ] = penalty_score
+
+    #
+    # COMBINE RESULTS
+    #
+
+    results_df = pd.concat(
+        [
+            finished_df,
+            non_finishers_df,
+        ],
+        ignore_index=True,
+    )
+
+    #
+    # HUMAN-READABLE TIMES
+    #
+
+    results_df["elapsed_time_hms"] = (
+        results_df["elapsed_time"]
+        .astype(str)
+    )
+
+    results_df["corrected_time_hms"] = (
+        results_df["corrected_time"]
+        .astype(str)
+    )
+
+    #
+    # SORT RESULTS
+    #
+
+    results_df.sort_values(
+        "corrected_position",
+        inplace=True,
+    )
+
+    results_df.reset_index(
+        drop=True,
+        inplace=True,
+    )
+
+    #
+    # WRITE OUTPUT
+    #
+
     if output_path:
-        # Use excel or csv extension
-        if output_path.lower().endswith('.xlsx'):
-            df.to_excel(output_path, index=False)
+
+        if output_path.lower().endswith(
+            ".xlsx"
+        ):
+
+            results_df.to_excel(
+                output_path,
+                index=False,
+            )
+
         else:
-            df.to_csv(output_path, index=False)
-    return df
+
+            results_df.to_csv(
+                output_path,
+                index=False,
+            )
+
+    return results_df
+
 
 
 if __name__ == "__main__":

@@ -49,11 +49,11 @@ def merge_races(race1, race2, race3):
     return merged
 
 
-def apply_dns_scores(df):
+def apply_dnc_scores(df):
 
     fleet_size = len(df)
 
-    dns_score = fleet_size + 1
+    dnc_score = fleet_size + 1
 
     for col in [
         "race_1_pos",
@@ -63,11 +63,11 @@ def apply_dns_scores(df):
 
         df[col] = (
             df[col]
-            .fillna(dns_score)
+            .fillna(dnc_score)
             .astype(int)
         )
 
-    return df, dns_score
+    return df, dnc_score
 
 
 def calculate_scores(df):
@@ -173,7 +173,7 @@ def validate_competitors(df):
     )
 
 
-def create_display_table(df, dns_score):
+def create_display_table(df, dnc_score):
 
     display = pd.DataFrame()
 
@@ -228,8 +228,8 @@ def create_display_table(df, dns_score):
     
             text = str(score)
     
-            if score == dns_score:
-                text = f"{score} DNS"
+            if score == dnc_score:
+                text = f"{score} DNC"
     
             if race_index == discard_index:
                 text = f"({text})"
@@ -326,8 +326,8 @@ if __name__ == "__main__":
         race3,
     )
 
-    standings, dns_score = (
-        apply_dns_scores(
+    standings, dnc_score = (
+        apply_dnc_scores(
             standings
         )
     )
@@ -355,7 +355,7 @@ if __name__ == "__main__":
 
     display_table = create_display_table(
         standings,
-        dns_score,
+        dnc_score,
     )
 
     html_file = "final_standings.html"
