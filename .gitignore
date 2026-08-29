@@ -20,5 +20,12 @@ output/
 # VS Code 
 .vscode/
 
-#Generated code
+# Generated spreadsheets
+output/*.xlsx
+
+# Generated standings
+final_standings.xlsx
+
+# Generated HTML
 *.html
+

@@ -228,6 +228,10 @@ def correct_against_reference(
             row["helm"]
         ).strip()
 
+        extracted_crew = str(
+            row["crew"]
+        ).strip()
+
         extracted_boat = str(
             row["boat_type"]
         ).strip()
@@ -235,140 +239,86 @@ def correct_against_reference(
         best_score = 0
         best_match = None
 
-        for _, ref in sailors_df.iterrows():
+        #
+        # FIRST TRY EXACT SAIL NUMBER MATCH
+        #
+        exact_match = sailors_df[
+            sailors_df["Sail No"].astype(str)
+            == extracted_sail
+        ]
 
-            ref_sail = str(
-                ref["Sail No"]
-            ).strip()
+        if len(exact_match) == 1:
 
-            ref_helm = str(
-                ref["Helm Name"]
-            ).strip()
+            best_match = exact_match.iloc[0]
+            best_score = 1.0
 
-            ref_class = str(
-                ref["Class"]
-            ).strip()
+        else:
 
-            sail_score = similarity(
-                extracted_sail,
-                ref_sail,
-            )
+            #
+            # FALL BACK TO FUZZY MATCHING
+            #
+            for _, ref in sailors_df.iterrows():
 
-            helm_score = similarity(
-                extracted_helm,
-                ref_helm,
-            )
+                ref_sail = str(
+                    ref["Sail No"]
+                ).strip()
 
-            boat_score = similarity(
-                extracted_boat,
-                ref_class,
-            )
+                ref_helm = str(
+                    ref["Helm Name"]
+                ).strip()
 
-            combined_score = (
-                sail_score * 0.5
-                + helm_score * 0.4
-                + boat_score * 0.1
-            )
+                ref_crew = str(
+                    ref["Crew Name"]
+                ).strip()
 
-            if combined_score > best_score:
+                ref_class = str(
+                    ref["Class"]
+                ).strip()
 
-                best_score = combined_score
-                best_match = ref
-
-        corrected_rows.append(
-            {
-                "raw_sail_number":
+                sail_score = similarity(
                     extracted_sail,
+                    ref_sail,
+                )
 
-                "raw_helm":
+                helm_score = similarity(
                     extracted_helm,
+                    ref_helm,
+                )
 
-                "raw_boat_type":
+                crew_score = similarity(
+                    extracted_helm,
+                    ref_crew,
+                )
+
+                name_score = max(
+                    helm_score,
+                    crew_score,
+                )
+
+                boat_score = similarity(
                     extracted_boat,
+                    ref_class,
+                )
 
-                "corrected_sail_number":
-                    best_match["Sail No"],
+                combined_score = (
+                    sail_score * 0.50
+                    + name_score * 0.40
+                    + boat_score * 0.10
+                )
 
-                "corrected_helm":
-                    best_match["Helm Name"],
+                if combined_score > best_score:
 
-                "corrected_class":
-                    best_match["Class"],
+                    best_score = combined_score
+                    best_match = ref
 
-                "corrected_crew":
-                    best_match["Crew Name"],
-
-                "confidence":
-                    round(
-                        best_score,
-                        3,
-                    ),
-
-                "status":
-                    assign_status(
-                        best_score
-                    ),
-            }
+        status = assign_status(
+            best_score
         )
 
-    return pd.DataFrame(
-        corrected_rows
-    )
-
-
-
-def correct_against_reference(
-    extracted_df,
-    sailors_df,
-):
-
-    corrected_rows = []
-
-    for _, row in extracted_df.iterrows():
-
-        extracted_sail = str(
-            row["sail_number"]
-        ).strip()
-
-        extracted_helm = str(
-            row["helm"]
-        ).strip()
-
-        best_score = 0
-        best_match = None
-
-        for _, ref in sailors_df.iterrows():
-
-            ref_sail = str(
-                ref["Sail No"]
-            ).strip()
-
-            ref_helm = str(
-                ref["Helm Name"]
-            ).strip()
-
-            sail_score = similarity(
-                extracted_sail,
-                ref_sail,
-            )
-
-            helm_score = similarity(
-                extracted_helm,
-                ref_helm,
-            )
-
-            combined_score = (
-                sail_score * 0.7
-                +
-                helm_score * 0.3
-            )
-
-            if combined_score > best_score:
-
-                best_score = combined_score
-                best_match = ref
-
-        if best_match is not None:
+        if (
+            best_match is None
+            or status == "NOT_IN_REFERENCE"
+        ):
 
             corrected_rows.append(
                 {
@@ -377,6 +327,51 @@ def correct_against_reference(
 
                     "raw_helm":
                         extracted_helm,
+
+                    "raw_crew":
+                        extracted_crew,
+
+                    "raw_boat_type":
+                        extracted_boat,
+
+                    "corrected_sail_number":
+                        "",
+
+                    "corrected_helm":
+                        "",
+
+                    "corrected_class":
+                        "",
+
+                    "corrected_crew":
+                        "",
+
+                    "confidence":
+                        round(
+                            best_score,
+                            3,
+                        ),
+
+                    "status":
+                        status,
+                }
+            )
+
+        else:
+
+            corrected_rows.append(
+                {
+                    "raw_sail_number":
+                        extracted_sail,
+
+                    "raw_helm":
+                        extracted_helm,
+
+                    "raw_crew":
+                        extracted_crew,
+
+                    "raw_boat_type":
+                        extracted_boat,
 
                     "corrected_sail_number":
                         best_match["Sail No"],
@@ -395,12 +390,16 @@ def correct_against_reference(
                             best_score,
                             3,
                         ),
+
+                    "status":
+                        status,
                 }
             )
 
     return pd.DataFrame(
         corrected_rows
     )
+
 
 def parse_identity_output(raw_text):
 
@@ -650,6 +649,19 @@ def match_identity_to_laps(
         merged_rows
     )
 
+def assign_status(score):
+
+    if score >= 0.95:
+        return "EXACT_MATCH"
+
+    if score >= 0.85:
+        return "HIGH_CONFIDENCE_MATCH"
+
+    if score >= 0.70:
+        return "REVIEW_REQUIRED"
+
+    return "NOT_IN_REFERENCE"
+
 
 if __name__ == "__main__":
 
@@ -716,12 +728,71 @@ if __name__ == "__main__":
         dtype=str,
     )
     
-    validation_df = (
+    validation_only_df = (
         correct_against_reference(
             merged_df,
             sailors_df,
         )
     )
+
+    validation_df = pd.concat(
+        [
+            merged_df.reset_index(drop=True),
+            validation_only_df.reset_index(drop=True),
+        ],
+        axis=1,
+    )
+
+    validation_df = validation_df[
+        validation_df["total_laps"] > 0
+    ].copy()
+
+    column_order = [
+	
+        # OCR identity
+        
+        "boat_type",
+        "sail_number",
+        "helm",
+        "crew",
+        
+        # OCR lap data
+        
+        "lap1",
+        "lap2",
+        "lap3",
+        "lap4",
+        "lap5",
+        "lap6",
+        
+        "elapsed_time",
+        "total_laps",
+        
+        "match_confidence",
+        
+        # validation
+        
+        "raw_sail_number",
+        "raw_helm",
+        "raw_crew",
+        "raw_boat_type",
+        
+        "corrected_sail_number",
+        "corrected_helm",
+        "corrected_crew",
+        "corrected_class",
+        
+        "confidence",
+        "status",
+    ]
+	
+    validation_df = validation_df[
+        [
+            c
+            for c in column_order
+            if c in validation_df.columns
+        ]
+    ]
     
     print(
         validation_df[
@@ -765,4 +836,9 @@ if __name__ == "__main__":
     
     print("Created merged_race_data.xlsx")
     print("Created validation.xlsx")
+
+    print("\n===== CHECK OUTPUT =====\n")
+    print("\n Make sure to check the \n")
+    print("\n= newly created file: ==\n")
+    print("\n=== validation.xlsx ====\n")
 
