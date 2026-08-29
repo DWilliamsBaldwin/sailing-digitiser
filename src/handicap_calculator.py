@@ -4,6 +4,13 @@ def calculate_handicap(race_excel_path, py_csv_path, output_path=None):
     # Read race sheet
     df = pd.read_excel(race_excel_path, engine='openpyxl')
 
+    # Convert elapsed_time from MM:SS text
+    # into pandas Timedelta
+	
+    df["elapsed_time"] = pd.to_timedelta(
+        "00:" + df["elapsed_time"].astype(str)
+    )
+
     # Compute maximum laps sailed (used for normalization)
     max_laps = df['total_laps'].max()
 
@@ -19,16 +26,59 @@ def calculate_handicap(race_excel_path, py_csv_path, output_path=None):
     df.loc[mask_max, 'adjusted_elapsed_time'] = df.loc[mask_max, 'elapsed_time']
 
     # Read PY lookup values
+
     py_df = pd.read_csv(py_csv_path)
-    # Merge PY values on boat_type
-    df = df.merge(py_df, on='boat_type', how='left')
+    
+    df["boat_type"] = (
+        df["boat_type"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    
+    py_df["boat_type"] = (
+        py_df["boat_type"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+    
+    df = df.merge(
+        py_df,
+        on="boat_type",
+        how="left",
+    )
+
+
+    print("\n===== PY MERGE CHECK =====\n")
+    
+    print(
+        df[
+            [
+                "boat_type",
+                "py",
+            ]
+        ]
+    )
+    
+    print("\nMissing PY rows:\n")
+    
+    print(
+        df[
+            df["py"].isna()
+        ]
+    )
 
     # Calculate corrected time: standard RYA sum-of-laps method
     # corrected_time = adjusted_elapsed_time * 1000 / PY
     df['corrected_time'] = df['adjusted_elapsed_time'] * 1000 / df['py']
 
     # Rank competitors by corrected_time (lower is better)
-    df['corrected_position'] = df['corrected_time'].rank(method='min', ascending=True).astype(int)
+    df['corrected_position'] = (
+        df['corrected_time']
+          .rank(method='min', ascending=True)
+          .astype('Int64')
+    )
 
     # Sort by corrected_time to produce leaderboard
     df.sort_values('corrected_time', inplace=True)

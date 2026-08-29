@@ -675,6 +675,12 @@ if __name__ == "__main__":
         help="Path to race sheet image"
     )
 
+    parser.add_argument(
+        "--race-label",
+        default="race1",
+        help="Race label used for output filenames",
+    )
+
     args = parser.parse_args()
 
     result1 = extract_identity_data(
@@ -685,10 +691,10 @@ if __name__ == "__main__":
         args.image
     )
 
-    print("\n===== RAW OLLAMA OUTPUT =====\n")
+    #print("\n===== RAW OLLAMA OUTPUT =====\n")
 
-    print(result1)
-    print(result2)
+    #print(result1)
+    #print(result2)
 
     print("\n====== MERGE DATAFRAMES =====\n")
 
@@ -810,18 +816,34 @@ if __name__ == "__main__":
     output_dir.mkdir(exist_ok=True)
     
 
-    merged_df.to_excel(
-        output_dir / "merged_race_data.xlsx",
-        index=False,
+#    merged_df.to_excel(
+#        output_dir / "merged_race_data.xlsx",
+#        index=False,
+#    )
+    #
+#    validation_df.to_excel(
+#        output_dir / "validation.xlsx",
+#        index=False,
+#    )
+
+
+    #validation_file = output_dir / "validation.xlsx"
+
+    validation_file = (
+        output_dir
+        / f"{args.race_label}_validation.xlsx"
     )
     
-    validation_df.to_excel(
-        output_dir / "validation.xlsx",
-        index=False,
+    merged_file = (
+        output_dir
+        / f"{args.race_label}_merged_race_data.xlsx"
     )
 
 
-    validation_file = output_dir / "validation.xlsx"
+    merged_df.to_excel(
+        merged_file,
+        index=False,
+    )
     
     validation_df.to_excel(
         validation_file,
@@ -831,14 +853,9 @@ if __name__ == "__main__":
     print(
         f"Created {validation_file}"
     )
-
-
     
-    print("Created merged_race_data.xlsx")
-    print("Created validation.xlsx")
+    print(
+        f"Created {merged_file}"
+    )
 
-    print("\n===== CHECK OUTPUT =====\n")
-    print("\n Make sure to check the \n")
-    print("\n= newly created file: ==\n")
-    print("\n=== validation.xlsx ====\n")
 
