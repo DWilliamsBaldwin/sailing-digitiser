@@ -4,6 +4,13 @@ import argparse
 import pandas as pd
 from pathlib import Path
 
+SAILOR_COLUMNS = [
+    "Class",
+    "Sail No",
+    "Helm Name",
+    "Crew Name",
+]
+
 def choose_value(corrected, raw):
 
     if pd.notna(corrected):
@@ -23,7 +30,10 @@ def update_sailors_reference(
     sailors_df = pd.read_csv(
         sailors_csv,
         dtype=str,
+        usecols=[0, 1, 2, 3],
     )
+
+    sailors_df.columns = SAILOR_COLUMNS
 
     new_rows = []
 
@@ -101,8 +111,13 @@ def update_sailors_reference(
     if len(new_rows) > 0:
 
         new_df = pd.DataFrame(
-            new_rows
+            new_rows,
+            columns=SAILOR_COLUMNS,
         )
+
+        print("\n===== NEW SAILOR ROWS =====\n")
+        
+        print(new_df)
 
         sailors_df = pd.concat(
             [
@@ -125,11 +140,13 @@ def update_sailors_reference(
         sailors_df.to_csv(
             backup_file,
             index=False,
+            columns=SAILOR_COLUMNS,
         )
 
         sailors_df.to_csv(
             sailors_csv,
             index=False,
+            columns=SAILOR_COLUMNS,
         )
 
         print(

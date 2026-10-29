@@ -11,6 +11,7 @@ def load_race_results(path, race_number):
     df = pd.read_excel(path)
 
     keep_cols = [
+        "competitor_id",
         "boat_type",
         "sail_number",
         "helm",
@@ -54,14 +55,14 @@ def merge_races(race1, race2, race3):
 
     merged = race1.merge(
         race2,
-        on="sail_number",
+        on="competitor_id",
         how="outer",
         suffixes=("_r1", "_r2"),
     )
 
     merged = merged.merge(
         race3,
-        on="sail_number",
+        on="competitor_id",
         how="outer",
     )
 

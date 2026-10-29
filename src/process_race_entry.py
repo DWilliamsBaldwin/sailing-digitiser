@@ -98,6 +98,7 @@ def build_fleet(sailors_df):
             
                 fleet.append(
                     {
+                        "competitor_id": sailors["CompetitorID"],
                         "sail_number": sail,
                         "helm": sailor["Helm Name"],
                         "crew": sailor["Crew Name"],
@@ -121,6 +122,7 @@ def build_fleet(sailors_df):
             
                 fleet.append(
                     {
+                        "competitor_id": sailors["CompetitorID"],
                         "sail_number": sail,
                         "helm": helm,
                         "crew": crew,
@@ -157,6 +159,7 @@ def build_fleet(sailors_df):
             
                 fleet.append(
                     {
+                        "competitor_id": sailors["CompetitorID"],
                         "sail_number": sail,
                         "helm": helm,
                         "crew": crew,
@@ -338,6 +341,7 @@ def write_validation_file(df, race_name):
 
     validation_df = df[
         [
+            "competitor_id",
             "sail_number",
             "helm",
             "crew",
