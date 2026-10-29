@@ -3,7 +3,7 @@
 import subprocess
 import webbrowser
 from pathlib import Path
-
+import process_race_entry as manual
 
 def run_command(command):
 
@@ -47,35 +47,83 @@ def process_race(race_num):
         f"\n========== RACE {race_num} ==========\n"
     )
 
-    image_file = input(
-        f"Path to Race {race_num} image: "
-    ).strip()
+    mode = input(
+        "Entry mode "
+        "(OCR/MANUAL): "
+    ).strip().upper()
+
+    race_type = input(
+        "Race type "
+        "(HANDICAP/PURSUIT): "
+    ).strip().upper()
+
+
+    race_name = f"race{race_num}"
+
+
 
     validation_file = (
-        f"output/race{race_num}_validation.xlsx"
+        f"output/{race_name}_validation.xlsx"
     )
-
+    
     race_workbook = (
-        f"output/race{race_num}.xlsx"
+        f"output/{race_name}.xlsx"
+    )
+    
+    race_results_file = (
+        f"output/{race_name}_results.xlsx"
     )
 
-    race_results_file = (
-        f"output/race{race_num}_results.xlsx"
-    )
+    if mode == "OCR":
+    
+            image_file = input(
+                f"Path to Race {race_num} image: "
+            ).strip()
+        
+            expected_sails = input(
+                "Expected sail numbers "
+                "(comma separated): "
+            ).strip()
+
+            run_command(
+                [
+                    "python",
+                    "src/process_race_sheet.py",
+                    "--image",
+                    image_file,
+                    "--race-label",
+                    f"race{race_num}",
+                    "--expected-sails",
+                    expected_sails,
+                ]
+            )
+    
+    else:
+    
+        sailors_df = (
+            manual.load_sailors()
+        )
+    
+        fleet = (
+            manual.build_fleet(
+                sailors_df
+            )
+        )
+    
+        results_df = (
+            manual.enter_results(
+                fleet,
+                race_type,
+            )
+        )
+    
+        manual.write_validation_file(
+            results_df,
+            race_name,
+        )
 
     print(
         "\nGenerating validation workbook..."
-    )
-
-    run_command(
-        [
-            "python",
-            "src/process_race_sheet.py",
-            "--image",
-            image_file,
-            "--race-label",
-            f"race{race_num}",
-        ]
     )
 
     print(
@@ -110,8 +158,93 @@ def process_race(race_num):
         ]
     )
 
+    if race_type == "HANDICAP":
+    
+        print(
+            "\nRunning handicap calculator..."
+        )
+    
+        run_command(
+            [
+                "python",
+                "src/handicap_calculator.py",
+                "--race",
+                race_workbook,
+                "--py",
+                "data/reference/py_lookup.csv",
+                "--output",
+                race_results_file,
+            ]
+        )
+    
+    else:
+    
+        print(
+            "\nSkipping handicap calculator "
+            "(PURSUIT race)."
+        )
+
+
     print(
-        "\nRunning handicap calculator..."
+        f"\nRace {race_num} complete."
+    )
+
+def rebuild_existing_race():
+
+    race_num = input(
+        "\nRace to rebuild (1-3): "
+    ).strip()
+
+    if race_num not in [
+        "1",
+        "2",
+        "3",
+    ]:
+
+        print(
+            "\nInvalid race number."
+        )
+
+        return
+
+    validation_file = (
+        f"output/race{race_num}_validation.xlsx"
+    )
+
+    if not Path(
+        validation_file
+    ).exists():
+
+        print(
+            f"\n{validation_file} "
+            "does not exist."
+        )
+
+        return
+
+    race_workbook = (
+        f"output/race{race_num}.xlsx"
+    )
+
+    race_results_file = (
+        f"output/race{race_num}_results.xlsx"
+    )
+
+    print(
+        f"\nRebuilding Race {race_num}"
+    )
+
+    run_command(
+        [
+            "python",
+            "src/build_race_workbook.py",
+            "--validation",
+            validation_file,
+            "--sailors",
+            "data/reference/sailors.csv",
+            "--output",
+            race_workbook,
+        ]
     )
 
     run_command(
@@ -128,9 +261,62 @@ def process_race(race_num):
     )
 
     print(
-        f"\nRace {race_num} complete."
+        f"\nRace {race_num} rebuilt."
     )
 
+def rebuild_existing_results():
+
+    for race_num in [1, 2, 3]:
+
+        validation_file = (
+            f"output/race{race_num}_validation.xlsx"
+        )
+
+        if not Path(
+            validation_file
+        ).exists():
+
+            continue
+
+        race_workbook = (
+            f"output/race{race_num}.xlsx"
+        )
+
+        race_results = (
+            f"output/race{race_num}_results.xlsx"
+        )
+
+        print(
+            f"\nRebuilding race {race_num}"
+        )
+
+        run_command(
+            [
+                "python",
+                "src/build_race_workbook.py",
+                "--validation",
+                validation_file,
+                "--sailors",
+                "data/reference/sailors.csv",
+                "--output",
+                race_workbook,
+            ]
+        )
+
+        run_command(
+            [
+                "python",
+                "src/handicap_calculator.py",
+                "--race",
+                race_workbook,
+                "--py",
+                "data/reference/py_lookup.csv",
+                "--output",
+                race_results,
+            ]
+        )
+
+    generate_final_standings()
 
 def generate_final_standings():
 
@@ -199,8 +385,18 @@ if __name__ == "__main__":
         )
 
         print(
-            "5 - Exit"
+            "5 - Rebuild Existing Race"
         )
+        
+        print(
+            "6 - Rebuild Existing Results"
+        )
+        
+        print(
+            "7 - Exit"
+        )
+
+
 
         choice = input(
             "\nSelect option: "
@@ -223,12 +419,22 @@ if __name__ == "__main__":
             generate_final_standings()
 
         elif choice == "5":
-
+        
+            rebuild_existing_race()
+        
+        elif choice == "6":
+        
+            rebuild_existing_results()
+        
+        elif choice == "7":
+        
             print(
                 "\nGoodbye."
             )
-
+        
             break
+
+
 
         else:
 

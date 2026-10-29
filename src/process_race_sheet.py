@@ -108,45 +108,94 @@ Do not include any explanation.
 """
 
 
-LAP_PROMPT = """
-	This is a sailing handicap race results sheet.
+#LAP_PROMPT = """
+#	This is a sailing handicap race results sheet.
+#
+#	Your task is OCR transcription only.
+	#
+#	Do NOT calculate elapsed time.
+#	Do NOT calculate total laps.
+#	Do NOT interpret the results.
+#	Do NOT summarise the table.
+	#
+#	For each competitor row:
+	#
+#	1. Read the sail number.
+#	2. Read every visible lap-time cell.
+#	3. Preserve the order of the lap columns exactly as shown.
+#	4. If a cell is blank, write BLANK.
+#	5. If a long dash appears, write DASH.
+#	6. Do not invent values.
+#	7. Do not skip competitors.
+	#
+#	Return one line per competitor using exactly this format:
+	#
+#	SAIL_NUMBER | LAP1 | LAP2 | LAP3 | LAP4 | LAP5 | LAP6
+	#
+#	Example:
+	#
+#	8065 | 11:12 | 22:54 | 34:31 | 46:10 | DASH | DASH
+	#
+#	321 | 12:04 | 24:10 | 36:55 | DASH | DASH | DASH
+	#
+#	Important:
+	#
+#	The final lap time may be in any lap column.
+#	Do NOT attempt to determine elapsed time.
+#	Do NOT attempt to determine number of laps sailed.
+	#
+#	Simply transcribe the values visible in each row.
+#	Return competitor rows only.
+#"""
 
-	Your task is OCR transcription only.
-	
-	Do NOT calculate elapsed time.
-	Do NOT calculate total laps.
-	Do NOT interpret the results.
-	Do NOT summarise the table.
-	
-	For each competitor row:
-	
-	1. Read the sail number.
-	2. Read every visible lap-time cell.
-	3. Preserve the order of the lap columns exactly as shown.
-	4. If a cell is blank, write BLANK.
-	5. If a long dash appears, write DASH.
-	6. Do not invent values.
-	7. Do not skip competitors.
-	
-	Return one line per competitor using exactly this format:
-	
-	SAIL_NUMBER | LAP1 | LAP2 | LAP3 | LAP4 | LAP5 | LAP6
-	
-	Example:
-	
-	8065 | 11:12 | 22:54 | 34:31 | 46:10 | DASH | DASH
-	
-	321 | 12:04 | 24:10 | 36:55 | DASH | DASH | DASH
-	
-	Important:
-	
-	The final lap time may be in any lap column.
-	Do NOT attempt to determine elapsed time.
-	Do NOT attempt to determine number of laps sailed.
-	
-	Simply transcribe the values visible in each row.
-	Return competitor rows only.
+LAP_PROMPT = """
+This is a sailing handicap race results sheet.
+
+Your task is OCR transcription only.
+
+You must copy values exactly as written.
+
+Do NOT calculate elapsed time.
+Do NOT calculate total laps.
+Do NOT interpret results.
+Do NOT estimate values.
+Do NOT complete missing values.
+Do NOT create patterns or sequences.
+
+For each competitor row:
+
+1. Read the sail number.
+2. Read every visible lap time.
+3. Copy times exactly as written.
+4. Preserve column order.
+5. If a cell is empty write BLANK.
+6. If a dash appears write DASH.
+7. If a value cannot be read write UNREADABLE.
+
+Important:
+
+Every time must come directly from the image.
+
+Do not invent times.
+
+Do not generate regular sequences such as:
+
+12:00 | 24:00 | 36:00 | 48:00
+
+unless those exact values are visible.
+
+Read the sail number column only.
+
+Do not read row numbers.
+
+Return exactly:
+
+SAIL_NUMBER | LAP1 | LAP2 | LAP3 | LAP4 | LAP5 | LAP6
+
+Return competitor rows only.
+No explanation.
 """
+
 
 def extract_identity_data(image_path):
 
@@ -168,7 +217,36 @@ def extract_identity_data(image_path):
     return response["message"]["content"]
 
 
-def extract_race_sheet(image_path):
+def build_lap_prompt(expected_sails):
+
+    prompt = LAP_PROMPT
+
+    if expected_sails:
+
+        prompt += "\n\nKnown sail numbers on this sheet:\n\n"
+
+        for sail in expected_sails:
+
+            prompt += f"{sail}\n"
+
+        prompt += """
+
+    Use these sail numbers as guidance.
+    
+    prompt += """
+    prompt += "\n".join(expected_sails)
+    
+    prompt += """
+    
+    Use these sail numbers only as guidance.
+    
+    Do not invent sail numbers.
+    """
+
+    return prompt
+
+
+def extract_race_sheet(image_path,expected_sails,):
 
     print("Sending lap prompt to Ollama...")
 
@@ -177,7 +255,7 @@ def extract_race_sheet(image_path):
         messages=[
             {
                 "role": "user",
-                "content": LAP_PROMPT,
+                "content": build_lap_prompt(expected_sails),
                 "images": [image_path],
             }
         ],
@@ -400,6 +478,31 @@ def correct_against_reference(
         corrected_rows
     )
 
+def build_single_sail_prompt(sail_number):
+
+    return f"""
+This is a sailing handicap race results sheet.
+
+Find the row for sail number:
+
+{sail_number}
+
+Read only that row.
+
+Return exactly:
+
+SAIL_NUMBER | LAP1 | LAP2 | LAP3 | LAP4 | LAP5 | LAP6
+
+If a lap cell is empty write BLANK.
+
+Copy values exactly as written.
+
+Do not estimate values.
+Do not calculate elapsed time.
+Do not calculate total laps.
+
+Return one line only.
+"""
 
 def parse_identity_output(raw_text):
 
@@ -506,10 +609,24 @@ def derive_total_laps(row):
         "lap6",
     ]
 
-    return sum(
-        str(row[col]).upper() != "BLANK"
-        for col in lap_cols
-    )
+    count = 0
+
+    for col in lap_cols:
+
+        value = str(
+            row[col]
+        ).strip().upper()
+
+        if value not in [
+            "",
+            "BLANK",
+            "NAN",
+            "DASH",
+        ]:
+
+            count += 1
+
+    return count
 
 def parse_lap_output(raw_text):
 
@@ -522,42 +639,79 @@ def parse_lap_output(raw_text):
         if not line:
             continue
 
-        # Skip headers
-        if "SAIL_NUMBER" in line.upper():
-            continue
+        #
+        # OLD FORMAT:
+        #
+        # 1168 | 13:09 | 24:13 | 37:51
+        #
 
-        if "---" in line:
-            continue
+        if "|" in line:
 
-        if "|" not in line:
+            parts = [
+                p.strip()
+                for p in line.split("|")
+            ]
+
+        #
+        # NEW FORMAT:
+        #
+        # 1168: 13:09,24:13,37:51
+        #
+
+        elif ":" in line:
+
+            first_colon = line.find(":")
+
+            sail_number = (
+                line[:first_colon]
+                .strip()
+            )
+
+            remainder = (
+                line[first_colon + 1 :]
+                .strip()
+            )
+
+            lap_values = [
+                p.strip()
+                for p in remainder.split(",")
+            ]
+
+            parts = [
+                sail_number
+            ] + lap_values
+
+        else:
+
             continue
 
         parts = [
-            p.strip()
-            for p in line.split("|")
-        ]
-
-        # Remove empty columns caused by
-        # leading/trailing pipes
-        parts = [
-            p for p in parts
+            p
+            for p in parts
             if p != ""
         ]
 
-        if len(parts) != 7:
+        if len(parts) < 2:
             continue
 
         sail_number = parts[0]
 
+        lap_values = parts[1:]
+
+        while len(lap_values) < 6:
+            lap_values.append("BLANK")
+
+        lap_values = lap_values[:6]
+
         rows.append(
             {
                 "sail_number": sail_number,
-                "lap1": parts[1],
-                "lap2": parts[2],
-                "lap3": parts[3],
-                "lap4": parts[4],
-                "lap5": parts[5],
-                "lap6": parts[6],
+                "lap1": lap_values[0],
+                "lap2": lap_values[1],
+                "lap3": lap_values[2],
+                "lap4": lap_values[3],
+                "lap5": lap_values[4],
+                "lap6": lap_values[5],
             }
         )
 
@@ -681,31 +835,113 @@ if __name__ == "__main__":
         help="Race label used for output filenames",
     )
 
+    parser.add_argument(
+        "--expected-sails",
+        default="",
+        help="Comma separated sail numbers",
+    )
+
     args = parser.parse_args()
 
-    result1 = extract_identity_data(
-        args.image
-    )
+    expected_sails = [
+        x.strip()
+        for x in args.expected_sails.split(",")
+        if x.strip()
+    ]    
 
     result2 = extract_race_sheet(
-        args.image
+        args.image,expected_sails,
     )
 
-    #print("\n===== RAW OLLAMA OUTPUT =====\n")
+    print("\n===== RAW LAP OCR =====\n")
+    print(result2)
+    print("\n=======================\n")
 
-    #print(result1)
-    #print(result2)
+    
+    laps_df = parse_lap_output(
+        result2
+    )
 
-    print("\n====== MERGE DATAFRAMES =====\n")
+    print("\n===== OCR ROW COUNT =====\n")
+    print(len(laps_df))
 
-    identity_df = parse_identity_output(result1)
-	
-    laps_df = parse_lap_output(result2)
+    sailors_df = pd.read_csv(
+        "data/reference/sailors.csv",
+        dtype=str,
+        index_col=False,
+    )
+    
+    sailors_df["Sail No"] = (
+        sailors_df["Sail No"]
+        .astype(str)
+        .str.strip()
+    )
 
-    merged_df = match_identity_to_laps(
-        identity_df,
+    truth_df = pd.DataFrame(
+        {
+            "sail_number": expected_sails
+        }
+    )
+    
+    truth_df["sail_number"] = (
+        truth_df["sail_number"]
+        .astype(str)
+        .str.strip()
+    )
+    
+    truth_df = truth_df.merge(
+        sailors_df[
+            [
+                "Sail No",
+                "Helm Name",
+                "Crew Name",
+                "Class",
+            ]
+        ],
+        left_on="sail_number",
+        right_on="Sail No",
+        how="left",
+    )
+    
+    truth_df = truth_df.rename(
+        columns={
+            "Helm Name": "helm",
+            "Crew Name": "crew",
+            "Class": "boat_type",
+        }
+    )
+    
+    print("\n===== TRUTH_DF =====\n")
+    print(truth_df)
+
+    if "sail_number" in laps_df.columns:
+    
+        laps_df["sail_number"] = (
+            laps_df["sail_number"]
+            .astype(str)
+            .str.strip()
+        )
+    
+    else:
+    
+        laps_df = pd.DataFrame(
+            columns=[
+                "sail_number",
+                "lap1",
+                "lap2",
+                "lap3",
+                "lap4",
+                "lap5",
+                "lap6",
+            ]
+        )
+
+    
+    merged_df = truth_df.merge(
         laps_df,
-    )
+        on="sail_number",
+        how="left",
+    )    
 
     merged_df["elapsed_time"] = (
         merged_df.apply(
@@ -713,33 +949,61 @@ if __name__ == "__main__":
             axis=1,
         )
     )
-	
+    
     merged_df["total_laps"] = (
         merged_df.apply(
             derive_total_laps,
             axis=1,
-		)
-	)
+        )
+    )
+
+    print("\n===== LAPS_DF =====\n")
+    print(laps_df)
+    
+    print("\n===== MERGED_DF =====\n")
+    print(merged_df)
 
     print(merged_df[
             [
                 "sail_number",
-                "match_confidence",
             ]
         ]
     )
 
-    sailors_df = pd.read_csv(
-        "data/reference/sailors.csv",
-        dtype=str,
-    )
+    validation_only_df = pd.DataFrame(
+        {
+            "raw_sail_number":
+                merged_df["sail_number"],
     
-    validation_only_df = (
-        correct_against_reference(
-            merged_df,
-            sailors_df,
-        )
+            "raw_helm":
+                merged_df["helm"],
+    
+            "raw_crew":
+                merged_df["crew"],
+    
+            "raw_boat_type":
+                merged_df["boat_type"],
+    
+            "corrected_sail_number":
+                merged_df["sail_number"],
+    
+            "corrected_helm":
+                merged_df["helm"],
+    
+            "corrected_crew":
+                merged_df["crew"],
+    
+            "corrected_class":
+                merged_df["boat_type"],
+    
+            "confidence":
+                1.0,
+    
+            "status":
+                "TRUTH_LIST",
+        }
     )
+
 
     validation_df = pd.concat(
         [

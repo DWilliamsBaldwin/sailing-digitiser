@@ -36,6 +36,37 @@ def calculate_handicap(
         .str.upper()
     )
 
+    #
+    # Boat type aliases
+    #
+    
+    BOAT_ALIASES = {
+    
+        "ILCA 4":
+            "ILCA 4 / LASER 4.7",
+    
+        "LASER 4.7":
+            "ILCA 4 / LASER 4.7",
+    
+        "ILCA 6":
+            "ILCA 6 / LASER RADIAL",
+    
+        "LASER RADIAL":
+            "ILCA 6 / LASER RADIAL",
+    
+        "ILCA 7":
+            "ILCA 7 / LASER",
+    
+        "LASER":
+            "ILCA 7 / LASER",
+    }
+    
+    df["boat_type"] = (
+        df["boat_type"]
+        .replace(BOAT_ALIASES)
+    )
+
+
     # Split finishers and non-finishers
 
     special_statuses = [
@@ -105,6 +136,27 @@ def calculate_handicap(
         on="boat_type",
         how="left",
     )
+
+    missing_py = finished_df[
+        finished_df["py"].isna()
+    ]
+    
+    if len(missing_py) > 0:
+    
+        print(
+            "\nWARNING - Missing PY values:"
+        )
+    
+        print(
+            missing_py[
+                [
+                    "boat_type",
+                    "sail_number",
+                    "helm",
+                ]
+            ]
+        )
+    
 
     finished_df["corrected_time"] = (
         finished_df["adjusted_elapsed_time"]

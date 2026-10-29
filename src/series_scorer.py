@@ -16,6 +16,8 @@ def load_race_results(path, race_number):
         "helm",
         "crew",
         "corrected_position",
+        "elapsed_time",
+        #"review_status",
     ]
 
     df = df[keep_cols].copy()
@@ -27,6 +29,23 @@ def load_race_results(path, race_number):
         },
         inplace=True,
     )
+
+    df.rename(
+        columns={
+            "elapsed_time":
+            f"race_{race_number}_status"
+        },
+        inplace=True,
+    )
+
+    #df.rename(
+        #columns={
+            #"review_status":
+            #f"race_{race_number}_status"
+        #},
+        #inplace=True,
+    #)
+
 
     return df
 
@@ -207,39 +226,89 @@ def create_display_table(df, dnc_score):
     ]
 
     for race_col in race_cols:
-    
+
         display_col = []
-    
-        race_index = race_cols.index(race_col)
-    
+
+        race_index = race_cols.index(
+            race_col
+        )
+
         for idx, row in df.iterrows():
-    
+
             race_scores = [
                 row["race_1_pos"],
                 row["race_2_pos"],
                 row["race_3_pos"],
             ]
-    
+
             discard_index = race_scores.index(
                 max(race_scores)
             )
-    
-            score = int(row[race_col])
-    
-            text = str(score)
-    
-            if score == dnc_score:
-                text = f"{score} DNC"
-    
-            if race_index == discard_index:
-                text = f"({text})"
-    
-            display_col.append(text)
-    
-        display[race_col] = display_col
 
-    display["Total Score"] = df["gross_score"]
-    display["Nett Score"] = df["nett_score"]
+            score = int(
+                row[race_col]
+            )
+
+            text = str(score)
+
+            status_col = (
+                f"race_{race_index + 1}_status"
+            )
+
+            status = str(
+                row.get(
+                    status_col,
+                    ""
+                )
+            ).upper()
+
+            #
+            # DNC
+            #
+
+            if score == dnc_score:
+
+                text = (
+                    f"{score} DNC"
+                )
+
+            #
+            # RET / DNF / DNS
+            #
+
+            elif status in [
+                "RET",
+                "DNF",
+                "DNS",
+            ]:
+
+                text = (
+                    f"{score} {status}"
+                )
+
+            #
+            # Discard
+            #
+
+            if race_index == discard_index:
+
+                text = f"({text})"
+
+            display_col.append(
+                text
+            )
+
+        display[race_col] = (
+            display_col
+        )
+
+    display["Total Score"] = (
+        df["gross_score"]
+    )
+
+    display["Nett Score"] = (
+        df["nett_score"]
+    )
 
     for col in [
         "race_1_pos",
@@ -249,7 +318,9 @@ def create_display_table(df, dnc_score):
 
         display[col] = (
             display[col]
-            .apply(style_race_result)
+            .apply(
+                style_race_result
+            )
         )
 
     return display

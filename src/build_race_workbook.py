@@ -32,35 +32,71 @@ def update_sailors_reference(
         == "UPDATE_SAILOR"
     ]
 
+    if len(update_rows) == 0:
+
+        return
+
+
     for _, row in update_rows.iterrows():
+    
+        #
+        # Manual-entry workbook
+        #
+    
+        if not has_ocr_columns(
+            validation_df
+        ):
+    
+            new_rows.append(
+                {
+                    "Class":
+                        row["boat_type"],
+    
+                    "Sail No":
+                        row["sail_number"],
+    
+                    "Helm Name":
+                        row["helm"],
+    
+                    "Crew Name":
+                        row["crew"],
+                }
+            )
+    
+        #
+        # OCR workbook
+        #
+    
+        else:
+    
+            new_rows.append(
+                {
+                    "Class":
+                        choose_value(
+                            row["corrected_class"],
+                            row["raw_boat_type"],
+                        ),
+    
+                    "Sail No":
+                        choose_value(
+                            row["corrected_sail_number"],
+                            row["raw_sail_number"],
+                        ),
+    
+                    "Helm Name":
+                        choose_value(
+                            row["corrected_helm"],
+                            row["raw_helm"],
+                        ),
+    
+                    "Crew Name":
+                        choose_value(
+                            row["corrected_crew"],
+                            row["raw_crew"],
+                        ),
+                }
+            )
 
-        new_rows.append(
-            {
-                "Class":
-                    choose_value(
-                        row["corrected_class"],
-                        row["raw_boat_type"],
-                    ),
-
-                "Sail No":
-                    choose_value(
-                        row["corrected_sail_number"],
-                        row["raw_sail_number"],
-                    ),
-
-                "Helm Name":
-                    choose_value(
-                        row["corrected_helm"],
-                        row["raw_helm"],
-                    ),
-
-                "Crew Name":
-                    choose_value(
-                        row["corrected_crew"],
-                        row["raw_crew"],
-                    ),
-            }
-        )
 
     if len(new_rows) > 0:
 
@@ -81,6 +117,16 @@ def update_sailors_reference(
             keep="last",
         )
 
+        backup_file = (
+            Path(sailors_csv)
+            .with_suffix(".bak.csv")
+        )
+        
+        sailors_df.to_csv(
+            backup_file,
+            index=False,
+        )
+
         sailors_df.to_csv(
             sailors_csv,
             index=False,
@@ -90,65 +136,48 @@ def update_sailors_reference(
             f"Updated {sailors_csv}"
         )
 
+def has_ocr_columns(df):
+
+    return all(
+        col in df.columns
+        for col in [
+            "corrected_class",
+            "corrected_sail_number",
+            "corrected_helm",
+            "corrected_crew",
+        ]
+    )
+
+
 def build_race_workbook(
     validation_df,
 ):
 
+    #
+    # Manual entry workbook
+    #
+
+    if not has_ocr_columns(
+        validation_df
+    ):
+
+        return validation_df[
+            [
+                "boat_type",
+                "sail_number",
+                "helm",
+                "crew",
+                "elapsed_time",
+                "total_laps",
+            ]
+        ].copy()
+
+    #
+    # OCR workbook
+    #
+
     race_df = pd.DataFrame()
 
-    race_df["boat_type"] = (
-        validation_df.apply(
-            lambda r: choose_value(
-                r["corrected_class"],
-                r["raw_boat_type"],
-            ),
-            axis=1,
-        )
-    )
-
-    race_df["sail_number"] = (
-        validation_df.apply(
-            lambda r: choose_value(
-                r["corrected_sail_number"],
-                r["raw_sail_number"],
-            ),
-            axis=1,
-        )
-    )
-
-    race_df["helm"] = (
-        validation_df.apply(
-            lambda r: choose_value(
-                r["corrected_helm"],
-                r["raw_helm"],
-            ),
-            axis=1,
-        )
-    )
-
-    race_df["crew"] = (
-        validation_df.apply(
-            lambda r: choose_value(
-                r["corrected_crew"],
-                r["raw_crew"],
-            ),
-            axis=1,
-        )
-    )
-
-    race_df["elapsed_time"] = (
-        validation_df["elapsed_time"]
-    )
-
-    race_df["total_laps"] = (
-        validation_df["total_laps"]
-    )
-
-    race_df["review_status"] = (
-        validation_df["status"]
-    )
-
-    return race_df
 
 if __name__ == "__main__":
 
