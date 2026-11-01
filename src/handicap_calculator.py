@@ -82,12 +82,20 @@ def calculate_handicap(
         .isin(special_statuses)
     ].copy()
 
+    finished_df["race_status"] = ""
+
     non_finishers_df = df[
         df["elapsed_time"]
         .astype(str)
         .str.upper()
         .isin(special_statuses)
     ].copy()
+
+    non_finishers_df["race_status"] = (
+        non_finishers_df["elapsed_time"]
+        .astype(str)
+        .str.upper()
+    )
 
     competitor_count = len(df)
 

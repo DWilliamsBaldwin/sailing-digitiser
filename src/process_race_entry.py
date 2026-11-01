@@ -47,9 +47,9 @@ def build_fleet(sailors_df):
             
                 print("\nSelect rig:")
             
-                print("1 - ILCA 4")
-                print("2 - ILCA 6")
-                print("3 - ILCA 7")
+                print("1/4 - ILCA 4")
+                print("2/6 - ILCA 6")
+                print("3/7 - ILCA 7")
             
                 choice = input(
                     "Choice: "
@@ -59,6 +59,9 @@ def build_fleet(sailors_df):
                     "1": "ILCA 4",
                     "2": "ILCA 6",
                     "3": "ILCA 7",
+                    "4": "ILCA 4",
+                    "6": "ILCA 6",
+                    "7": "ILCA 7",
                 }
             
                 boat_type = rig_lookup.get(
@@ -98,7 +101,7 @@ def build_fleet(sailors_df):
             
                 fleet.append(
                     {
-                        "competitor_id": sailors["CompetitorID"],
+                        "competitor_id": sailor["CompetitorID"],
                         "sail_number": sail,
                         "helm": sailor["Helm Name"],
                         "crew": sailor["Crew Name"],
@@ -122,7 +125,7 @@ def build_fleet(sailors_df):
             
                 fleet.append(
                     {
-                        "competitor_id": sailors["CompetitorID"],
+                        "competitor_id": sailor["CompetitorID"],
                         "sail_number": sail,
                         "helm": helm,
                         "crew": crew,
@@ -132,34 +135,35 @@ def build_fleet(sailors_df):
 
 
         else:
-
-
             print(
                 "\nSail number not found."
             )
-            
+        
             add_manual = input(
                 "Add sailor manually? "
                 "(Y/N): "
             ).strip().upper()
-            
+        
             if add_manual == "Y":
-            
                 helm = input(
                     "Helm: "
                 ).strip()
-            
+        
                 crew = input(
                     "Crew (blank if none): "
                 ).strip()
-            
+        
                 boat_type = input(
-                     "Class: "
+                    "Class: "
                 ).strip()
-            
+        
+                # Leave this blank for now.
+                # build_race_workbook.py will assign the next
+                # available WFSC CompetitorID if UPDATE_SAILOR
+                # is selected in the validation workbook.
                 fleet.append(
                     {
-                        "competitor_id": sailors["CompetitorID"],
+                        "competitor_id": "",
                         "sail_number": sail,
                         "helm": helm,
                         "crew": crew,

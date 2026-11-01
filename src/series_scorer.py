@@ -18,6 +18,7 @@ def load_race_results(path, race_number):
         "crew",
         "corrected_position",
         "elapsed_time",
+        "race_status",
         #"review_status",
     ]
 
@@ -30,6 +31,15 @@ def load_race_results(path, race_number):
         },
         inplace=True,
     )
+
+    df.rename(
+        columns={
+            "race_status":
+            f"race_{race_number}_status"
+        },
+        inplace=True,
+    )
+
 
     df.rename(
         columns={
@@ -257,9 +267,7 @@ def create_display_table(df, dnc_score):
             )
 
             status = str(
-                row.get(
-                    status_col,
-                    ""
+                row.get(status_col,""
                 )
             ).upper()
 

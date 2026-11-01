@@ -892,6 +892,7 @@ if __name__ == "__main__":
     truth_df = truth_df.merge(
         sailors_df[
             [
+                "CompetitorID",
                 "Sail No",
                 "Helm Name",
                 "Crew Name",
@@ -905,6 +906,7 @@ if __name__ == "__main__":
     
     truth_df = truth_df.rename(
         columns={
+            "CompetitorID": "competitor_id",
             "Helm Name": "helm",
             "Crew Name": "crew",
             "Class": "boat_type",
@@ -1018,7 +1020,8 @@ if __name__ == "__main__":
     ].copy()
 
     column_order = [
-	
+	    "competitor_id",
+        
         # OCR identity
         
         "boat_type",
