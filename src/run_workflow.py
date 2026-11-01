@@ -2,6 +2,8 @@
 
 import subprocess
 import webbrowser
+import shutil
+from datetime import datetime
 from pathlib import Path
 import process_race_entry as manual
 
@@ -41,6 +43,70 @@ def wait_for_user(message):
     )
 
 
+def archive_race_result(
+    race_num,
+    race_type,
+    race_date,
+    source_file,
+):
+    results_dir = Path("results")
+    results_dir.mkdir(
+        exist_ok=True
+    )
+
+    race_code = {
+        "HANDICAP": "HAND",
+        "PURSUIT": "PURS",
+    }.get(
+        race_type,
+        race_type,
+    )
+
+    date_code = race_date.strftime(
+        "%d%m%Y"
+    )
+
+    archive_file = (
+        results_dir
+        / (
+            f"Race{race_num}_"
+            f"{race_code}_"
+            f"{date_code}_results.xlsx"
+        )
+    )
+
+    if archive_file.exists():
+        print(
+            "\nWARNING: Archived result "
+            "already exists:"
+        )
+        print(
+            archive_file
+        )
+
+        overwrite = input(
+            "Overwrite it? (Y/N): "
+        ).strip().upper()
+
+        if overwrite != "Y":
+            print(
+                "\nExisting archived result "
+                "has been preserved."
+            )
+            return
+
+    shutil.copy2(
+        source_file,
+        archive_file,
+    )
+
+    print(
+        "\nPermanent race result saved:"
+    )
+    print(
+        archive_file
+    )
+
 def process_race(race_num):
 
     print(
@@ -57,6 +123,24 @@ def process_race(race_num):
         "(HANDICAP/PURSUIT): "
     ).strip().upper()
 
+    while True:
+        race_date_input = input(
+            "Race date "
+            "(DD/MM/YYYY): "
+        ).strip()
+
+        try:
+            race_date = datetime.strptime(
+                race_date_input,
+                "%d/%m/%Y",
+            )
+            break
+
+        except ValueError:
+            print(
+                "Invalid date. "
+                "Please use DD/MM/YYYY."
+            )
 
     race_name = f"race{race_num}"
 
@@ -159,11 +243,10 @@ def process_race(race_num):
     )
 
     if race_type == "HANDICAP":
-    
         print(
             "\nRunning handicap calculator..."
         )
-    
+
         run_command(
             [
                 "python",
@@ -176,18 +259,34 @@ def process_race(race_num):
                 race_results_file,
             ]
         )
-    
-    else:
-    
+
+    elif race_type == "PURSUIT":
         print(
-            "\nSkipping handicap calculator "
-            "(PURSUIT race)."
+            "\nPreparing pursuit race results..."
         )
 
+        shutil.copy2(
+            race_workbook,
+            race_results_file,
+        )
+
+    else:
+        raise ValueError(
+            f"Unknown race type: {race_type}"
+        )
+
+    # Archive the completed result for either race type.
+    archive_race_result(
+        race_num,
+        race_type,
+        race_date,
+        race_results_file,
+    )
 
     print(
         f"\nRace {race_num} complete."
     )
+
 
 def rebuild_existing_race():
 

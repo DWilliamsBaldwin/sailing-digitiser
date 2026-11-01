@@ -63,71 +63,129 @@ def update_sailors_reference(
         numbers = []
 
         for competitor_id in sailors_df["CompetitorID"]:
-            competitor_id = str(competitor_id).strip().upper()
+            competitor_id = (
+                str(competitor_id)
+                .strip()
+                .upper()
+            )
 
             if competitor_id.startswith("WFSC"):
                 number_part = competitor_id[4:]
 
                 if number_part.isdigit():
-                    numbers.append(int(number_part))
+                    numbers.append(
+                        int(number_part)
+                    )
 
-        next_number = max(numbers, default=0) + 1
+        next_number = (
+            max(numbers, default=0)
+            + 1
+        )
 
         return f"WFSC{next_number:04d}"
 
     for _, row in update_rows.iterrows():
 
-        # Manual-entry validation workbook
-        if not has_ocr_columns(validation_df):
+        #
+        # MANUAL-ENTRY VALIDATION WORKBOOK
+        #
+        if not has_ocr_columns(
+            validation_df
+        ):
             competitor_id = str(
-                row.get("competitor_id", "")
+                row.get(
+                    "competitor_id",
+                    "",
+                )
             ).strip()
 
             sail_number = str(
-                row.get("sail_number", "")
+                row.get(
+                    "sail_number",
+                    "",
+                )
             ).strip()
 
             sailor_values = {
-                "Class": row.get("boat_type", ""),
+                "Class": row.get(
+                    "boat_type",
+                    "",
+                ),
                 "Sail No": sail_number,
-                "Helm Name": row.get("helm", ""),
-                "Crew Name": row.get("crew", ""),
+                "Helm Name": row.get(
+                    "helm",
+                    "",
+                ),
+                "Crew Name": row.get(
+                    "crew",
+                    "",
+                ),
             }
 
-        # OCR validation workbook
         else:
             competitor_id = str(
-                row.get("competitor_id", "")
+                row.get(
+                    "competitor_id",
+                    "",
+                )
             ).strip()
 
             sail_number = choose_value(
-                row.get("corrected_sail_number", ""),
-                row.get("raw_sail_number", ""),
+                row.get(
+                    "corrected_sail_number",
+                    "",
+                ),
+                row.get(
+                    "raw_sail_number",
+                    "",
+                ),
             )
 
-            sail_number = str(sail_number).strip()
+            sail_number = str(
+                sail_number
+            ).strip()
 
             sailor_values = {
                 "Class": choose_value(
-                    row.get("corrected_class", ""),
-                    row.get("raw_boat_type", ""),
+                    row.get(
+                        "corrected_class",
+                        "",
+                    ),
+                    row.get(
+                        "raw_boat_type",
+                        "",
+                    ),
                 ),
                 "Sail No": sail_number,
                 "Helm Name": choose_value(
-                    row.get("corrected_helm", ""),
-                    row.get("raw_helm", ""),
+                    row.get(
+                        "corrected_helm",
+                        "",
+                    ),
+                    row.get(
+                        "raw_helm",
+                        "",
+                    ),
                 ),
                 "Crew Name": choose_value(
-                    row.get("corrected_crew", ""),
-                    row.get("raw_crew", ""),
+                    row.get(
+                        "corrected_crew",
+                        "",
+                    ),
+                    row.get(
+                        "raw_crew",
+                        "",
+                    ),
                 ),
             }
 
-        # If the validation workbook has no CompetitorID,
-        # try to recover it using the sail number.
-        if competitor_id == "" or competitor_id.lower() == "nan":
+        if (
+            competitor_id == ""
+            or competitor_id.lower() == "nan"
+        ):
             existing_match = sailors_df[
-                sailors_df["Sail No"] == sail_number
+                sailors_df["Sail No"]
+                == sail_number
             ]
 
             if len(existing_match) >= 1:
@@ -135,25 +193,33 @@ def update_sailors_reference(
                     existing_match
                     .iloc[0]["CompetitorID"]
                 )
+
             else:
-                competitor_id = next_competitor_id()
+                competitor_id = (
+                    next_competitor_id()
+                )
 
-        sailor_values["CompetitorID"] = competitor_id
+        sailor_values[
+            "CompetitorID"
+        ] = competitor_id
 
-        # Update the existing competitor if the ID is known.
         id_match = (
             sailors_df["CompetitorID"]
             == competitor_id
         )
 
         if id_match.any():
-            for column, value in sailor_values.items():
+
+            for (
+                column,
+                value,
+            ) in sailor_values.items():
+
                 sailors_df.loc[
                     id_match,
                     column,
                 ] = value
 
-        # Otherwise append a genuinely new competitor.
         else:
             new_df = pd.DataFrame(
                 [sailor_values],
@@ -194,46 +260,6 @@ def update_sailors_reference(
         f"Updated {sailors_csv}"
     )
 
-
-    if len(new_rows) > 0:
-
-        new_df = pd.DataFrame(
-            new_rows,
-            columns=SAILOR_COLUMNS,
-        )
-
-        print("\n===== NEW SAILOR ROWS =====\n")
-        
-        print(new_df)
-
-        sailors_df = pd.concat(
-            [
-                sailors_df,
-                new_df,
-            ],
-            ignore_index=True,
-        )
-
-        sailors_df = sailors_df.drop_duplicates(
-            subset=["Sail No"],
-            keep="last",
-        )
-
-        backup_file = (
-            Path(sailors_csv)
-            .with_suffix(".bak.csv")
-        )
-        
-        sailors_df.to_csv(
-            backup_file,
-            index=False,
-            columns=SAILOR_COLUMNS,
-        )
-
-        print(
-            f"Updated {sailors_csv}"
-        )
-
 def has_ocr_columns(df):
 
     return all(
@@ -254,16 +280,24 @@ def build_race_workbook(
     if not has_ocr_columns(
         validation_df
     ):
+        columns = [
+            "competitor_id",
+            "boat_type",
+            "sail_number",
+            "helm",
+            "crew",
+            "race_type",
+            "elapsed_time",
+            "total_laps",
+            "finishing_position",
+            "status",
+        ]
+        
         return validation_df[
             [
-                "competitor_id",
-                "boat_type",
-                "sail_number",
-                "helm",
-                "crew",
-                "elapsed_time",
-                "total_laps",
-                "status",
+                col
+                for col in columns
+                if col in validation_df.columns
             ]
         ].copy()
 
