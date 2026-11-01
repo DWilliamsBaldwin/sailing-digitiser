@@ -44,7 +44,7 @@ def load_race_results(path, race_number):
     df.rename(
         columns={
             "elapsed_time":
-            f"race_{race_number}_status"
+            f"race_{race_number}_elapsed_time"
         },
         inplace=True,
     )
@@ -215,7 +215,22 @@ def create_display_table(df, dnc_score):
         .combine_first(df["boat_type"])
     )
 
-    display["Sail Number"] = df["sail_number"]
+    display["Sail Number"] = (
+        df["sail_number_r1"]
+        .combine_first(df["sail_number_r2"])
+        .combine_first(df["sail_number"])
+    )
+
+    display["Sail Number"] = (
+        display["Sail Number"]
+        .apply(
+            lambda x: (
+                ""
+                if pd.isna(x)
+                else str(x).removesuffix(".0")
+            )
+        )
+    )
 
     display["Helm"] = (
         df["helm_r1"]
