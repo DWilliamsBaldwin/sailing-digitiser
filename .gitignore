@@ -13,6 +13,7 @@ data/
 
 # Generated data 
 output/ 
+results/
 
 # Jupyter 
 .ipynb_checkpoints/ 

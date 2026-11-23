@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 import process_race_entry as manual
+from series_compiler import compile_series
 
 def run_command(command):
 
@@ -105,6 +106,69 @@ def archive_race_result(
     )
     print(
         archive_file
+    )
+
+def build_pursuit_results(
+    race_workbook,
+    race_results_file,
+):
+    import pandas as pd
+
+    df = pd.read_excel(
+        race_workbook
+    )
+
+    competitor_count = len(df)
+    penalty_score = competitor_count + 1
+
+    df["race_status"] = (
+        df["status"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    df["corrected_position"] = (
+        pd.to_numeric(
+            df["finishing_position"],
+            errors="coerce",
+        )
+    )
+
+    special_statuses = [
+        "DNF",
+        "DNS",
+        "RET",
+    ]
+
+    special_mask = (
+        df["race_status"]
+        .isin(special_statuses)
+    )
+
+    df.loc[
+        special_mask,
+        "corrected_position",
+    ] = penalty_score
+
+    df["corrected_position"] = (
+        df["corrected_position"]
+        .astype("Int64")
+    )
+
+    df.sort_values(
+        "corrected_position",
+        inplace=True,
+    )
+
+    df.to_excel(
+        race_results_file,
+        index=False,
+    )
+
+    print(
+        f"Created {race_results_file}"
     )
 
 def process_race(race_num):
@@ -264,8 +328,8 @@ def process_race(race_num):
         print(
             "\nPreparing pursuit race results..."
         )
-
-        shutil.copy2(
+    
+        build_pursuit_results(
             race_workbook,
             race_results_file,
         )
@@ -492,7 +556,11 @@ if __name__ == "__main__":
         )
         
         print(
-            "7 - Exit"
+            "7 - Compile New Series"
+        )        
+        
+        print(
+            "8 - Exit"
         )
 
 
@@ -526,6 +594,10 @@ if __name__ == "__main__":
             rebuild_existing_results()
         
         elif choice == "7":
+        
+            compile_series()
+
+        elif choice == "8":
         
             print(
                 "\nGoodbye."
