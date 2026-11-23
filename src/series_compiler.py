@@ -19,10 +19,11 @@ def discover_series_files(
     race_type,
     start_date,
     end_date,
+    results_dir=RESULTS_DIR,
 ):
     files = []
 
-    for path in RESULTS_DIR.glob(
+    for path in Path(results_dir).glob(
         "*_results.xlsx"
     ):
 
@@ -191,6 +192,43 @@ def merge_n_races(
     return merged
 
 
+def apply_series_dnc(
+    merged,
+    position_cols,
+):
+    """
+    Replace missing race positions with the series
+    DNC score: number of unique entries plus one.
+    """
+    merged = merged.copy()
+
+    fleet_size = len(
+        merged
+    )
+
+    dnc_score = (
+        fleet_size + 1
+    )
+
+    for col in position_cols:
+
+        merged[col] = (
+            pd.to_numeric(
+                merged[col],
+                errors="coerce",
+            )
+            .fillna(
+                dnc_score
+            )
+        )
+
+    return (
+        merged,
+        fleet_size,
+        dnc_score,
+    )
+
+
 def get_discard_count(
     race_count
 ):
@@ -266,6 +304,72 @@ def normalise_helm_name(value):
     return " ".join(
         str(value).strip().split()
     ).casefold()
+
+
+def get_discard_indices(
+    race_scores,
+    discards,
+):
+    """
+    Return the race indices to exclude from a series score.
+
+    Worst scores are discarded first. For equal scores,
+    earlier race indices are selected deterministically.
+    """
+    if discards <= 0:
+        return []
+
+    indexed_scores = [
+        (
+            index,
+            float(score),
+        )
+        for index, score in enumerate(
+            race_scores
+        )
+    ]
+
+    ranked = sorted(
+        indexed_scores,
+        key=lambda item: (
+            -item[1],
+            item[0],
+        ),
+    )
+
+    return [
+        index
+        for index, _ in ranked[
+            :discards
+        ]
+    ]
+
+
+def calculate_series_net_score(
+    race_scores,
+    discards,
+):
+    """
+    Calculate series net score after excluding
+    the selected worst race results.
+    """
+    scores = [
+        float(score)
+        for score in race_scores
+    ]
+
+    discard_indices = get_discard_indices(
+        scores,
+        discards,
+    )
+
+    return sum(
+        score
+        for index, score in enumerate(
+            scores
+        )
+        if index not in discard_indices
+    )
 
 
 def build_tiebreak_key(
@@ -563,33 +667,20 @@ def compile_series():
             f"  {col}"
         )
 
-    fleet_size = len(
-        merged
+    merged, fleet_size, dnc_score = (
+        apply_series_dnc(
+            merged,
+            position_cols,
+        )
     )
-    
-    dnc_score = (
-        fleet_size + 1
-    )
-    
+
     print(
         f"\nFleet size: {fleet_size}"
     )
-    
+
     print(
         f"DNC score: {dnc_score}"
     )
-
-    for col in position_cols:
-    
-        merged[col] = (
-            pd.to_numeric(
-                merged[col],
-                errors="coerce"
-            )
-            .fillna(
-                dnc_score
-            )
-        )
 
     score_table = pd.DataFrame()
 
@@ -755,13 +846,12 @@ def compile_series():
                     ]
                 )
 
-            discard_index = race_scores.index(
-                max(
-                    race_scores
-                )
+            discard_indices = get_discard_indices(
+                race_scores,
+                discards,
             )
 
-            if race_index == discard_index:
+            if race_index in discard_indices:
 
                 text = (
                     f"({text})"
@@ -802,30 +892,13 @@ def compile_series():
         axis=1
     )
 
-    def calculate_net_score(row):
-
-        scores = sorted(
-            [
-                float(value)
-                for value in row
-            ],
-            reverse=True,
-        )
-
-        discarded_scores = scores[
-            :discards
-        ]
-
-        return (
-            sum(scores)
-            -
-            sum(discarded_scores)
-        )
-
     score_table[
         "Net Score"
     ] = numeric_scores.apply(
-        calculate_net_score,
+        lambda row: calculate_series_net_score(
+            row.tolist(),
+            discards,
+        ),
         axis=1,
     )
 
