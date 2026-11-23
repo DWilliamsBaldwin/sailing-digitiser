@@ -59,6 +59,7 @@ def discover_series_files(
 
 def load_all_races(
     race_files,
+    scoring_mode="boat",
 ):
     races = []
 
@@ -66,25 +67,70 @@ def load_all_races(
         race_files,
         start=1,
     ):
-        races.append(
-            load_race_results(
-                path,
-                i
+        race = load_race_results(
+            path,
+            i
+        )
+
+        if scoring_mode == "helm":
+
+            race["helm_key"] = (
+                race["helm"]
+                .apply(
+                    normalise_helm_name
+                )
             )
+
+            if (
+                race["helm_key"] == ""
+            ).any():
+
+                raise ValueError(
+                    f"Blank helm name in {path.name}"
+                )
+
+            duplicates = race[
+                race["helm_key"].duplicated(
+                    keep=False
+                )
+            ]
+
+            if not duplicates.empty:
+
+                duplicate_names = (
+                    duplicates["helm"]
+                    .astype(str)
+                    .tolist()
+                )
+
+                raise ValueError(
+                    f"Duplicate helm in "
+                    f"{path.name}: "
+                    f"{duplicate_names}"
+                )
+
+        races.append(
+            race
         )
 
     return races
 
 def merge_n_races(
-    race_list
+    race_list,
+    scoring_mode="boat",
 ):
+    if scoring_mode == "helm":
+        merge_key = "helm_key"
+    else:
+        merge_key = "competitor_id"
+
     merged = race_list[0]
 
     for race_df in race_list[1:]:
 
         merged = merged.merge(
             race_df,
-            on="competitor_id",
+            on=merge_key,
             how="outer"
         )
 
@@ -94,6 +140,78 @@ def get_discard_count(
     race_count
 ):
     return race_count // 3
+
+def build_first_metadata(
+    race_list,
+    scoring_mode,
+):
+    """
+    Return identity metadata from each competitor's first
+    chronological appearance in the series.
+
+    In boat mode, competitors are identified by competitor_id.
+    In helm mode, competitors are identified by helm_key.
+    """
+    if scoring_mode == "helm":
+        key_col = "helm_key"
+    else:
+        key_col = "competitor_id"
+
+    metadata_frames = []
+
+    for race in race_list:
+
+        metadata_frames.append(
+            race[
+                [
+                    key_col,
+                    "boat_type",
+                    "sail_number",
+                    "helm",
+                    "crew",
+                ]
+            ].copy()
+        )
+
+    metadata = pd.concat(
+        metadata_frames,
+        ignore_index=True,
+    )
+
+    metadata = metadata[
+        metadata[key_col].notna()
+    ].copy()
+
+    if scoring_mode == "helm":
+
+        metadata = metadata[
+            metadata[key_col] != ""
+        ].copy()
+
+    metadata = metadata.drop_duplicates(
+        subset=[
+            key_col
+        ],
+        keep="first",
+    )
+
+    return metadata.set_index(
+        key_col
+    )
+
+
+def normalise_helm_name(value):
+    """
+    Return a stable, case-insensitive key for matching
+    the same helm across different races and boats.
+    """
+    if pd.isna(value):
+        return ""
+
+    return " ".join(
+        str(value).strip().split()
+    ).casefold()
+
 
 def compile_series():
 
@@ -155,16 +273,15 @@ def compile_series():
         "\nSelect scoring mode: "
     ).strip()
 
-    if scoring_choice == "2":
+    if scoring_choice == "1":
 
-        print(
-            "\nBy sailor scoring "
-            "does not currently work."
-        )
+        scoring_mode = "boat"
 
-        return
+    elif scoring_choice == "2":
 
-    if scoring_choice != "1":
+        scoring_mode = "helm"
+
+    else:
 
         print(
             "\nInvalid scoring mode."
@@ -277,7 +394,8 @@ def compile_series():
         return
 
     races = load_all_races(
-        race_files
+        race_files,
+        scoring_mode,
     )
 
     race_labels = {}
@@ -317,7 +435,8 @@ def compile_series():
         )
 
     merged = merge_n_races(
-        races
+        races,
+        scoring_mode,
     )
     
     print(
@@ -373,83 +492,92 @@ def compile_series():
         )
 
     score_table = pd.DataFrame()
-    
+
+    if scoring_mode == "helm":
+        identity_col = "helm_key"
+    else:
+        identity_col = "competitor_id"
+
     score_table[
-        "competitor_id"
+        identity_col
     ] = merged[
-        "competitor_id"
+        identity_col
     ]
-    
+
+    first_metadata = build_first_metadata(
+        races,
+        scoring_mode,
+    )
+
     score_table[
         "Boat"
-    ] = merged[
-        "boat_type"
-    ].fillna(
-        merged[
-            "boat_type_y"
-        ]
-    ).fillna(
-        merged[
-            "boat_type_x"
+    ] = score_table[
+        identity_col
+    ].map(
+        first_metadata[
+            "boat_type"
         ]
     )
-    
+
     score_table[
         "Sail Number"
-    ] = merged[
-        "sail_number"
-    ].fillna(
-        merged[
-            "sail_number_y"
-        ]
-    ).fillna(
-        merged[
-            "sail_number_x"
+    ] = score_table[
+        identity_col
+    ].map(
+        first_metadata[
+            "sail_number"
         ]
     )
-    
+
+    def format_sail_number(value):
+
+        if pd.isna(value):
+            return ""
+
+        try:
+            numeric_value = float(value)
+
+            if numeric_value.is_integer():
+                return str(
+                    int(numeric_value)
+                )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            pass
+
+        return str(value)
+
     score_table[
         "Sail Number"
     ] = score_table[
         "Sail Number"
     ].apply(
-        lambda x:
-        (
-            str(int(float(x)))
-            if str(x).replace(".","").isdigit()
-            else str(x)
-        )
+        format_sail_number
     )
-
 
     score_table[
         "Helm"
-    ] = merged[
-        "helm"
-    ].fillna(
-        merged[
-            "helm_y"
-        ]
-    ).fillna(
-        merged[
-            "helm_x"
+    ] = score_table[
+        identity_col
+    ].map(
+        first_metadata[
+            "helm"
         ]
     )
-    
+
     score_table[
         "Crew"
-    ] = merged[
-        "crew"
-    ].fillna(
-        merged[
-            "crew_y"
+    ] = score_table[
+        identity_col
+    ].map(
+        first_metadata[
+            "crew"
         ]
-    ).fillna(
-        merged[
-            "crew_x"
-        ]
-    ).fillna( "" )
-    
+    ).fillna("")
+
     for race_index, col in enumerate(
         position_cols
     ):
@@ -539,6 +667,15 @@ def compile_series():
                     f"({text})"
                 )
 
+            #
+            # Podium colours
+            #
+            if score == 1:
+                text = f'<span class="gold">{text}</span>'
+            elif score == 2:
+                text = f'<span class="silver">{text}</span>'
+            elif score == 3:
+                text = f'<span class="bronze">{text}</span>'
             display_values.append(
                 text
             )
@@ -604,7 +741,7 @@ def compile_series():
 
     score_table.insert(
         0,
-        "Position",
+        "Pos.",
         range(
             1,
             len(score_table) + 1
@@ -650,9 +787,15 @@ def compile_series():
         f"{safe_name}.html"
     )
 
+    private_id_col = (
+        "helm_key"
+        if scoring_mode == "helm"
+        else "competitor_id"
+    )
+
     public_table = score_table.drop(
         columns=[
-            "competitor_id"
+            private_id_col
         ]
     )
 
@@ -685,6 +828,12 @@ def compile_series():
             f'src="data:image/jpeg;base64,{logo_data}" '
             f'alt="Club Logo">'
         )
+
+    scoring_label = (
+        "Helm"
+        if scoring_mode == "helm"
+        else "Boat"
+    )
 
     html = f"""
     <html>
@@ -725,6 +874,10 @@ def compile_series():
         color: white;
     }}
     
+    .gold {{ display: block; background-color: #FFD700; font-weight: bold; text-align: center; margin: -6px; padding: 6px; }}
+    .silver {{ display: block; background-color: #C0C0C0; font-weight: bold; text-align: center; margin: -6px; padding: 6px; }}
+    .bronze {{ display: block; background-color: #CD7F32; font-weight: bold; text-align: center; margin: -6px; padding: 6px; }}
+
     tr:nth-child(even) {{
         background: #f5f5f5;
     }}
@@ -744,6 +897,7 @@ def compile_series():
             <p>
     
             Race type: {race_type}<br>
+            Scores combined on: {scoring_label}<br>
             Races: {len(race_files)}<br>
             Discards: {discards}<br>
             Entries: {fleet_size}
