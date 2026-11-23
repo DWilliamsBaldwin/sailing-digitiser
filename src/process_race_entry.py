@@ -184,8 +184,10 @@ def build_fleet(sailors_df):
 
     return fleet
 
-def enter_results(fleet,race_type,):
-
+def enter_results(
+    fleet,
+    race_type,
+):
     rows = []
 
     print(
@@ -202,13 +204,84 @@ def enter_results(fleet,race_type,):
             sailor["helm"]
         )
 
+        #
+        # PURSUIT
+        #
+        if race_type == "PURSUIT":
+
+            result = input(
+                "Finishing position "
+                "(1, 2, 3..., DNF, DNS or RET): "
+            ).strip().upper()
+
+            if result in [
+                "DNF",
+                "DNS",
+                "RET",
+            ]:
+
+                position = ""
+                status = result
+
+            else:
+
+                try:
+                    position = int(
+                        result
+                    )
+
+                    if position < 1:
+                        raise ValueError
+
+                    status = "MANUAL_ENTRY"
+
+                except ValueError:
+
+                    raise ValueError(
+                        "Invalid finishing position: "
+                        f"{result}"
+                    )
+
+            rows.append(
+                {
+                    **sailor,
+                    "race_type": race_type,
+                    "elapsed_time": "",
+                    "total_laps": 0,
+                    "finishing_position": position,
+                    "raw_sail_number":
+                        sailor["sail_number"],
+                    "raw_helm":
+                        sailor["helm"],
+                    "raw_crew":
+                        sailor["crew"],
+                    "raw_boat_type":
+                        sailor["boat_type"],
+                    "corrected_sail_number":
+                        sailor["sail_number"],
+                    "corrected_helm":
+                        sailor["helm"],
+                    "corrected_crew":
+                        sailor["crew"],
+                    "corrected_class":
+                        sailor["boat_type"],
+                    "confidence": 1.0,
+                    "status": status,
+                }
+            )
+
+            continue
+
+        #
+        # HANDICAP
+        #
         elapsed = input(
             "Elapsed time "
             "(MM:SS, DNF, DNS or RET): "
         ).strip().upper()
 
-
         if "." in elapsed:
+
             elapsed = elapsed.replace(
                 ".",
                 ":",
@@ -219,13 +292,14 @@ def enter_results(fleet,race_type,):
             "DNS",
             "RET",
         ]:
-  
+
             rows.append(
                 {
                     **sailor,
-                    "race_type": race_type, 
-                    "elapsed_time": elapsed, 
+                    "race_type": race_type,
+                    "elapsed_time": elapsed,
                     "total_laps": 0,
+                    "finishing_position": "",
                     "raw_sail_number":
                         sailor["sail_number"],
                     "raw_helm":
@@ -246,87 +320,45 @@ def enter_results(fleet,race_type,):
                     "status": elapsed,
                 }
             )
-        
+
             continue
-        
+
         laps = input(
             "Laps sailed: "
         ).strip()
 
-
         rows.append(
             {
                 **sailor,
-                "race_type": race_type, 
-                "elapsed_time": elapsed, 
+                "race_type": race_type,
+                "elapsed_time": elapsed,
                 "total_laps": int(laps),
+                "finishing_position": "",
                 "raw_sail_number":
-                    sailor[
-                        "sail_number"
-                    ],
+                    sailor["sail_number"],
                 "raw_helm":
-                    sailor[
-                        "helm"
-                    ],
+                    sailor["helm"],
                 "raw_crew":
-                    sailor[
-                        "crew"
-                    ],
+                    sailor["crew"],
                 "raw_boat_type":
-                    sailor[
-                        "boat_type"
-                    ],
+                    sailor["boat_type"],
                 "corrected_sail_number":
-                    sailor[
-                        "sail_number"
-                    ],
+                    sailor["sail_number"],
                 "corrected_helm":
-                    sailor[
-                        "helm"
-                    ],
+                    sailor["helm"],
                 "corrected_crew":
-                    sailor[
-                        "crew"
-                    ],
+                    sailor["crew"],
                 "corrected_class":
-                    sailor[
-                        "boat_type"
-                    ],
-                "confidence":
-                    1.0,
-                "status":
-                    "MANUAL_ENTRY",
+                    sailor["boat_type"],
+                "confidence": 1.0,
+                "status": "MANUAL_ENTRY",
             }
         )
 
-    return pd.DataFrame(rows)
+    return pd.DataFrame(
+        rows
+    )
 
-#def write_validation_file(df,race_name,):
-#
-#
-#    output_dir = Path(
-#        "output"
-#    )
-#
-#    output_dir.mkdir(
-#        exist_ok=True
-#    )
-#
-#    output_file = (
-#        output_dir
-#        / f"{race_name}_validation.xlsx"
-#    )
-#
-#
-#    df.to_excel(
-#        output_file,
-#        index=False,
-#    )
-#
-#    print(
-#        f"\nCreated "
-#        f"{output_file}"
-#    )
 
 def write_validation_file(df, race_name):
 
@@ -353,6 +385,7 @@ def write_validation_file(df, race_name):
             "race_type",
             "elapsed_time",
             "total_laps",
+            "finishing_position",
             "status",
         ]
     ].copy()

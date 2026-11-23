@@ -351,6 +351,16 @@ def build_race_workbook(
         validation_df["total_laps"]
     )
 
+    if "race_type" in validation_df.columns:
+        race_df["race_type"] = (
+            validation_df["race_type"]
+        )
+
+    if "finishing_position" in validation_df.columns:
+        race_df["finishing_position"] = (
+            validation_df["finishing_position"]
+        )
+
     race_df["status"] = (
         validation_df["status"]
     )

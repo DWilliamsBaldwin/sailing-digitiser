@@ -119,6 +119,54 @@ def calculate_scores(df):
 
     return df
 
+def calculate_scores(
+    df,
+    discards=1,
+):
+    race_cols = [
+        c
+        for c in df.columns
+        if c.startswith("race_")
+        and c.endswith("_position")
+    ]
+
+    totals = []
+    discarded_scores = []
+
+    for _, row in df.iterrows():
+
+        scores = [
+            row[c]
+            for c in race_cols
+        ]
+
+        ordered = sorted(
+            scores,
+            reverse=True
+        )
+
+        discarded = ordered[:discards]
+
+        total = (
+            sum(scores)
+            - sum(discarded)
+        )
+
+        totals.append(total)
+
+        discarded_scores.append(
+            ",".join(
+                str(x)
+                for x in discarded
+            )
+        )
+
+    df["discard"] = discarded_scores
+
+    df["series_total"] = totals
+
+    return df
+
 
 def countback_key(row):
 
@@ -317,6 +365,17 @@ def create_display_table(df, dnc_score):
             if race_index == discard_index:
 
                 text = f"({text})"
+
+            #
+            # Podium colours
+            #
+
+            if score == 1:
+                text = f'<span class="gold">{text}</span>'
+            elif score == 2:
+                text = f'<span class="silver">{text}</span>'
+            elif score == 3:
+                text = f'<span class="bronze">{text}</span>'
 
             display_col.append(
                 text

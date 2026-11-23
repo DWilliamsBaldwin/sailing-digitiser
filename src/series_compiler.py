@@ -22,24 +22,45 @@ def discover_series_files(
 ):
     files = []
 
-    for path in RESULTS_DIR.glob("*_results.xlsx"):
+    for path in RESULTS_DIR.glob(
+        "*_results.xlsx"
+    ):
 
         parts = path.stem.split("_")
 
         if len(parts) < 4:
             continue
 
+        race_name = parts[0]
         file_race_type = parts[1]
 
         if file_race_type != race_type:
             continue
 
+        if not race_name.lower().startswith(
+            "race"
+        ):
+            continue
+
+        race_number_text = race_name[4:]
+
+        if not race_number_text.isdigit():
+            continue
+
+        race_number = int(
+            race_number_text
+        )
+
         date_string = parts[2]
 
-        race_date = datetime.strptime(
-            date_string,
-            "%d%m%Y"
-        ).date()
+        try:
+            race_date = datetime.strptime(
+                date_string,
+                "%d%m%Y"
+            ).date()
+
+        except ValueError:
+            continue
 
         if (
             start_date
@@ -49,13 +70,23 @@ def discover_series_files(
             files.append(
                 (
                     race_date,
-                    path
+                    race_number,
+                    path,
                 )
             )
 
-    files.sort()
+    files.sort(
+        key=lambda item: (
+            item[0],
+            item[1],
+        )
+    )
 
-    return [x[1] for x in files]
+    return [
+        item[2]
+        for item in files
+    ]
+
 
 def load_all_races(
     race_files,
@@ -124,17 +155,41 @@ def merge_n_races(
     else:
         merge_key = "competitor_id"
 
-    merged = race_list[0]
+    merged = None
 
-    for race_df in race_list[1:]:
+    for race_index, race_df in enumerate(
+        race_list,
+        start=1,
+    ):
 
-        merged = merged.merge(
-            race_df,
-            on=merge_key,
-            how="outer"
-        )
+        race_columns = [
+            merge_key,
+            f"race_{race_index}_pos",
+            f"race_{race_index}_elapsed_time",
+            f"race_{race_index}_status",
+        ]
+
+        race_columns = [
+            col
+            for col in race_columns
+            if col in race_df.columns
+        ]
+
+        race_slice = race_df[
+            race_columns
+        ].copy()
+
+        if merged is None:
+            merged = race_slice
+        else:
+            merged = merged.merge(
+                race_slice,
+                on=merge_key,
+                how="outer",
+            )
 
     return merged
+
 
 def get_discard_count(
     race_count
@@ -211,6 +266,51 @@ def normalise_helm_name(value):
     return " ".join(
         str(value).strip().split()
     ).casefold()
+
+
+def build_tiebreak_key(
+    race_scores,
+    discards,
+):
+    """
+    World Sailing RRS Appendix A8 series tie-break.
+
+    A8.1:
+    Compare non-excluded scores from best to worst.
+
+    A8.2:
+    If still tied, compare the last race, then work
+    backwards through the series, including excluded scores.
+    """
+    scores = [
+        float(score)
+        for score in race_scores
+    ]
+
+    ordered = sorted(
+        scores,
+        reverse=True,
+    )
+
+    if discards > 0:
+        counted = ordered[
+            discards:
+        ]
+    else:
+        counted = ordered
+
+    counted_best_to_worst = sorted(
+        counted
+    )
+
+    latest_to_earliest = list(
+        reversed(scores)
+    )
+
+    return tuple(
+        counted_best_to_worst
+        + latest_to_earliest
+    )
 
 
 def compile_series():
@@ -729,14 +829,44 @@ def compile_series():
         axis=1,
     )
 
+    #
+    # Series ranking and RRS Appendix A8 tie-break.
+    #
+    tiebreak_keys = numeric_scores.apply(
+        lambda row: build_tiebreak_key(
+            row.tolist(),
+            discards,
+        ),
+        axis=1,
+    )
+
+    score_table[
+        "_tiebreak_key"
+    ] = tiebreak_keys
+
     score_table = (
         score_table
         .sort_values(
-            "Net Score"
+            by=[
+                "Net Score",
+                "_tiebreak_key",
+            ],
+            ascending=[
+                True,
+                True,
+            ],
+            kind="stable",
         )
         .reset_index(
             drop=True
         )
+    )
+
+    score_table.drop(
+        columns=[
+            "_tiebreak_key"
+        ],
+        inplace=True,
     )
 
     score_table.insert(

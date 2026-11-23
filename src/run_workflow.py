@@ -355,20 +355,29 @@ def process_race(race_num):
 def rebuild_existing_race():
 
     race_num = input(
-        "\nRace to rebuild (1-3): "
+        "\nRace number to rebuild: "
     ).strip()
 
-    if race_num not in [
-        "1",
-        "2",
-        "3",
-    ]:
+    try:
+        race_num_value = int(
+            race_num
+        )
+
+        if race_num_value < 1:
+            raise ValueError
+
+    except ValueError:
 
         print(
-            "\nInvalid race number."
+            "\nRace number must be "
+            "a positive integer."
         )
 
         return
+
+    race_num = str(
+        race_num_value
+    )
 
     validation_file = (
         f"output/race{race_num}_validation.xlsx"
@@ -532,35 +541,27 @@ if __name__ == "__main__":
         )
 
         print(
-            "\n1 - Process Race 1"
+            "\n1 - Process a Race"
         )
 
         print(
-            "2 - Process Race 2"
+            "2 - Generate Final Standings"
         )
 
         print(
-            "3 - Process Race 3"
+            "3 - Rebuild Existing Race"
         )
 
         print(
-            "4 - Generate Final Standings"
+            "4 - Rebuild Existing Results"
         )
 
         print(
-            "5 - Rebuild Existing Race"
+            "5 - Compile New Series"
         )
-        
+
         print(
-            "6 - Rebuild Existing Results"
-        )
-        
-        print(
-            "7 - Compile New Series"
-        )        
-        
-        print(
-            "8 - Exit"
+            "6 - Exit"
         )
 
 
@@ -571,41 +572,52 @@ if __name__ == "__main__":
 
         if choice == "1":
 
-            process_race(1)
+            race_num_input = input(
+                "\nRace number: "
+            ).strip()
+
+            try:
+                race_num = int(
+                    race_num_input
+                )
+
+                if race_num < 1:
+                    raise ValueError
+
+            except ValueError:
+                print(
+                    "\nRace number must be "
+                    "a positive integer."
+                )
+                continue
+
+            process_race(
+                race_num
+            )
 
         elif choice == "2":
 
-            process_race(2)
+            generate_final_standings()
 
         elif choice == "3":
 
-            process_race(3)
+            rebuild_existing_race()
 
         elif choice == "4":
 
-            generate_final_standings()
+            rebuild_existing_results()
 
         elif choice == "5":
-        
-            rebuild_existing_race()
-        
-        elif choice == "6":
-        
-            rebuild_existing_results()
-        
-        elif choice == "7":
-        
+
             compile_series()
 
-        elif choice == "8":
-        
+        elif choice == "6":
+
             print(
                 "\nGoodbye."
             )
-        
+
             break
-
-
 
         else:
 
