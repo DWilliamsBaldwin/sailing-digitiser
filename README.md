@@ -5,7 +5,7 @@ sailing race results.
 
 ## Current version
 
-v0.2
+v0.3
 
 The project has developed from an experimental AI/OCR scoresheet
 digitiser into an end-to-end race processing workflow.
@@ -36,11 +36,20 @@ digitiser into an end-to-end race processing workflow.
 
 ### Series scoring
 
-- Combine multiple races into overall standings
-- Automatic scoring from finishing position
-- Discard handling
-- DNC, DNF, DNS and RET display
-- Persistent competitor matching using CompetitorID
+- Compile series automatically from archived race-result workbooks
+- Filter races by race type (`HAND` or `PURS`) and user-defined date range
+- Multiple races on the same day are treated as separate races
+- By-boat scoring using persistent `CompetitorID` values
+- Automatic low-point scoring from finishing positions
+- DNC scoring using series fleet size + 1
+- DNC, DNF, DNS and RET display in individual race results
+- Standard discard profile of one discard per three races, with manual override
+- Discarded results shown in brackets
+- Total and Net series scores
+- Excel series output retaining `CompetitorID` for provenance
+- Public HTML standings with internal `CompetitorID` hidden
+- WFSC-branded HTML output
+
 
 ### Race result archive
 
@@ -51,6 +60,13 @@ Working/intermediate files are stored in:
 Completed race results are copied to:
 
     results/
+
+Compiled series standings are written to:
+
+    results/Series/
+
+Series output includes both an Excel workbook and a public-facing HTML
+standings page.
 
 Archived results use descriptive filenames such as:
 
@@ -89,7 +105,8 @@ The workflow coordinates:
 6. Race workbook generation
 7. Handicap or pursuit result processing
 8. Permanent result archiving
-9. Series scoring
+9. Series compilation and scoring
+10. Excel and HTML series standings generation
 
 ## Reference data
 
@@ -106,8 +123,8 @@ to sail number, boat class or competitor details.
 
 ## Status
 
-v0.2 represents the first substantially complete race-management
-workflow.
+v0.3 adds automatic multi-race series compilation to the substantially
+complete race-management workflow introduced in v0.2.
 
 Tested:
 
@@ -118,8 +135,29 @@ Tested:
 - Addition of new competitors
 - Handicap result calculation
 - DNF/DNS/RET scoring and display
-- Series standings
 - Historical result archiving
+- Automatic discovery of archived races for series scoring
+- Race-type and date-range filtering
+- By-boat series compilation using CompetitorID
+- Automatic and manually overridden discard profiles
+- DNC series scoring
+- Display of discarded race results
+- Total and Net series score calculation
+- Excel series standings generation
+- Public HTML series standings generation
+- WFSC-branded HTML output
 
-The OCR and Pursuit workflows remain areas for further testing
-and development.
+The initial Winter Series implementation has been independently
+cross-checked against Sailwave and produces matching series scores for
+the current three-race test series.
+
+Current limitations and planned development:
+
+- By-sailor series scoring is not yet implemented
+- Series countback handling requires further validation and
+  generalisation
+- Multiple-discard presentation requires testing with longer series
+- HTML series presentation will continue to be refined
+- Pursuit workflows require further testing
+- OCR development currently remains secondary to the manual
+  race-entry workflow
